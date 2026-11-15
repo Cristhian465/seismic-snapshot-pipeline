@@ -1,0 +1,50 @@
+name: Build and publish seismic snapshot
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '37 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seismic-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Ingest, validate, transform, and export
+        run: python pipeline.py
+      - name: Archive source snapshot and SQLite database
+        uses: actions/upload-artifact@v4
+        with:
+          name: seismic-evidence
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
